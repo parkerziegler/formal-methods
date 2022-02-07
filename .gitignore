@@ -1,0 +1,9 @@
+# Latex
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+
+# Rust
+hw1/dimacs/target

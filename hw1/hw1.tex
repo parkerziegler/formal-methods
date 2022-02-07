@@ -1,0 +1,104 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\begin{document}
+
+\section{\textbf{Horn-SAT and Renamable Horn-SAT}}
+
+\bigskip
+\noindent For parts (a) and (b), let us first establish that Horn clauses can be rewritten as implications. We show this by case analysis on the structure of Horn clauses.
+
+\bigskip
+\noindent\emph{A Horn clause with exactly one positive literal}
+\bigskip
+
+\noindent In the case of a Horn clause with exactly one positive literal, e.g.  $(\lnot x_1 \lor \lnot x_2 \lor ... \lor x_k)$, material implication (the rule of inference) allows us to rewrite this clause to $(x_1 \land x_2 \land ... \Rightarrow x_k)$. The single positive literal clause $(x)$ is a special case, whose implication can be thought of as $(true \Rightarrow x)$.
+
+\bigskip
+\noindent \emph{A Horn clause with no positive literals}
+
+\bigskip
+\noindent In the case of a Horn clause with no positive literals, e.g. $(\lnot x_1 \lor \lnot x_2 \lor ... \lor \lnot x_k)$, we can think of its implication as $(x_1 \land x_2 \land ... \land x_k \Rightarrow false)$. This holds for the single negative literal clause $(x)$, i.e. $(\lnot x \Rightarrow false)$.
+
+\bigskip
+\subsection{\textbf{(a) A Linear Time Algorithm for Deciding the Satisfiability of HornSAT Formulae}}
+
+\bigskip
+\noindent \emph{Assumptions and Data Structures}
+
+\medskip
+\noindent Let us assume that we have a Horn-SAT formula, $\phi$, in CNF.  To begin, we initialize a collection of data structures to assist with tracking assignments to literals.
+\begin{enumerate}
+  \item For each positive literal $p$ in $\phi$, we compute a list $cl$ containing those clauses in which $p$ appears as a negative literal.
+  \item We also compute an array $nls$ such that $nls[c]$ returns the number of negative literals in clause $c$ that have current truth value $false$ (0). A clause $c$ can be processed for assignment by our algorithm if $nls[c] = 0$; in other words, its positive literal \emph{must} be $true$ (1).
+  \item We also create an array $pls$ such that $pls[c]$ returns the positive literal in clause $c$, if one exists.
+  \item Last, we instantiate a queue $q$ that will contain clauses that are ready to be processed (those for which $nls[c] = 0$ as stated above).
+\end{enumerate}
+
+\bigskip
+\noindent \emph{Procedure}
+
+\medskip
+\noindent To begin, we initialize $q$ to contain those clauses that are comprised of a single positive literal. In implication terms, we can think of these clauses as those of the form ($true \Rightarrow x$). We \emph{know} that these positive literals must eventually be assigned the value $true$ (1) if $\phi$ is satisfiable; moreover, $nls[c]$ of these clauses, by definition, evaluates to 0. We then enter a \textbf{while} loop guarded by the condition that $q$ is not empty, that is, that there are still some clauses for which $nls[c] \neq 0$.
+
+\medskip
+\noindent Within the body of the \textbf{while} loop, we enter a \textbf{for} loop iterating from 0 to the length of the queue, which is initially equivalent to the number of positive unit clauses in $\phi$. In the body of the \textbf{for} loop, we pop off the head of the queue and store its value in a variable $c_1$. We then access the positive literal $p_1$ in $c_1$ by indexing into $pls$ ($pls[c_1]$) and set its value to $true$. We also store $p_1$ in a variable named $next$.
+
+\medskip
+\noindent We then use $next$ to index into $\phi$ and obtain the clause list $cl$ related to $c_1$. Concretely, $cl$ represents the list of all clauses $c'$ in which $p_1$ (now set to $true$ (1)) appears as a negative literal. We ``remove" this literal from these clauses by setting $nls[c'] = nls[c'] - 1$, in essence decrementing the count of negative literals in $c'$ that have current truth assignment $false$ (0).
+
+\medskip
+\noindent We then check in a conditional if $nls[c'] = 0$, meaning that $c'$ is now ready to be processed. If so, we use $c'$ to index into $pls$ ($pls[c']$) to find its positive literal $p'$. If the positive literal is not yet assigned a truth value, then we set its current assignment to $true$ (1) and add $c'$ to $q$ to be processed in a later iteration of the \textbf{while} loop. If the positive literal is assigned $false$ (0), then we've hit a clause for which all negative literals have current truth value $true (1)$ and its positive literal is $false$ (0). Therefore, we return UNSAT. The \textbf{while} loop continues to process entries in the queue until it is empty and, if this point is reached, we return SAT.
+
+\begin{algorithm}
+\caption{Linear Time HornSAT Satisfiability}\label{horn}
+\begin{algorithmic}[1]
+    \Procedure{LinearHorn}{$\phi$}
+        \ForAll{$p~in~\phi$}
+            \State \textbf{Initialize:}
+            \State $p.cl \gets list[c~s.t.~p~is~a~negative~literal~in~c]$
+        \EndFor
+        \State \textbf{Initialize:}
+        \State $nls \gets array[0..number~of~clauses~in~\phi]~of~0..max~num~of~literals$
+        \State $pls \gets array[0..number~of~clauses~in~\phi]~of~0..max~num~of~literals$
+        \State $q \gets queue~of~clauses~comprised~of~a~single~positive~literal$
+        \\
+        \While{$q.length \neq 0$}
+            \For{$i= 0~to~q.length$}
+              \State $c_1 \gets q.pop()$
+              \State $pls[c_1] \gets true; next \gets pls[c_1]$
+              \\
+              \ForAll{$c'~in~\phi[next].cl$} \Comment{Iterate over all clauses in which $p_1$ is a negative literal}
+                \State $nls[c'] \gets nls[c'] - 1$
+                \If{$nls[c'] = 0$}
+                  \State $p' \gets pls[c']$
+                  \If{$p'~exists$}
+                    \If{$p' \neq false$}
+                      \State $Set~p'~to~true$
+                      \State $q.push(c')$
+                    \Else
+                      \State \textbf{return} UNSAT
+                    \EndIf
+                  \EndIf
+                \EndIf
+              \EndFor
+            \EndFor
+        \EndWhile
+        \\
+        \State \textbf{return} SAT 
+    \EndProcedure
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{\textbf{(b) A Polynomial Time Algorithm for Deciding Whether a CNF Formula is Renamable Horn}}
+
+We start by giving a description of the logical procedure for determining whether or not a formula, $F$, is renamable Horn before giving the precise algorithm.
+
+\bigskip
+\noindent Let $F$ be represented as a set of clauses $F = \{C_1, ..., C_m\}$, with each clause $C_i$ composed of a set of literals $\{L_{i1}, ..., L_{il}\}$. A \emph{renaming} of $F$ would entail replacing all literals in $F$ whose variable $n$ also appears in a separate set $A = \{n_1, ..., n_n\}$
+
+
+\end{document}
