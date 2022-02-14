@@ -4,6 +4,11 @@
 *.fls
 *.log
 *.synctex.gz
+*.bbl
+*.blg
 
 # Rust
 hw1/dimacs/target
+
+.DS_Store
+.vscode
