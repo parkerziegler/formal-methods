@@ -1,0 +1,57 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{listings}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{EECS 219C: Formal Methods — Assignment 2}
+\author{Parker Ziegler}
+\pagestyle{fancy}
+\lhead{EECS 219C: Formal Methods — Assignment 2}
+\rhead{Parker Ziegler}
+
+\begin{document}
+
+\maketitle
+
+\section{Sum-Sudoku}
+
+\subsection{Bit Twiddling Hacks}
+
+\subsubsection{(a) Equivalence of \code{f1} and \code{f2}}
+
+\noindent My SMT-LIB encoding to check equivalence of \code{f1} and \code{f2} is located in \code{1a.ascii}. Based on my encoding, \code{f1} and \code{f2} \textbf{are not equivalent}. Z3 provides the counterexample $x = 1$, in which \code{f1(x)} evlauates to -1 while \code{f2(x)} evaluates to 1. The full output returned by Z3 is:
+
+\begin{lstlisting}
+(
+  (define-fun v_1 () (_ BitVec 32)
+    #x00000000)
+  (define-fun x () (_ BitVec 32)
+    #x00000001)
+  (define-fun v_0 () (_ BitVec 32)
+    #xffffffff)
+  (define-fun ret_2 () (_ BitVec 32)
+    #x00000001)
+  (define-fun v_2 () (_ BitVec 32)
+    #x00000001)
+  (define-fun ret_1 () (_ BitVec 32)
+    #xffffffff)
+)
+\end{lstlisting}
+
+\noindent Cleaning this up to use decimal notation, the full assignment is:
+
+\begin{lstlisting}[language=Python]
+[x = 1, v_0 = -1, ret_1 = -1, v_1 = 0, v_2 = 1, ret_2 = 1]
+\end{lstlisting}
+
+\subsubsection{(b) Equivalence of \code{f3} and \code{f4}}
+
+\noindent My SMT-LIB encoding to check equivalence of \code{f3} and \code{f4} is located in \code{1b.ascii}. Based on my encoding, \code{f3} and \code{f4} \textbf{are equivalent}.
+
+\subsection{Formulate an SMT instance that finds a solution to Sum-Sudoku puzzles}
+
+
+\end{document}
