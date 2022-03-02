@@ -1,0 +1,23 @@
+;; Set the background theory as LIA.
+;; We can't use bitwise operators per the problem statement.
+(set-logic LIA)
+
+;; Define the target function to synthesize.
+(synth-fun f2Equiv ((x Int)) Int
+    
+    ;; Declare the non-terminals of the grammar for f2Equiv.
+    ((I Int) (B Bool))
+
+    ;; Define the grammar for allowed implementations of f2Equiv.
+    ((I Int (x 0 1
+             (+ I I) (- I I)
+             (ite B I I)))
+     (B Bool ((= I I) (<= I I) (>= I I))))
+)
+
+(declare-var x Int)
+
+;; Define the semantic constraints on f2Equiv.
+(constraint (= (f2Equiv x) (abs x)))
+
+(check-synth)

@@ -10,5 +10,8 @@
 # Rust
 hw1/dimacs/target
 
+# Python
+.venv
+
 .DS_Store
 .vscode

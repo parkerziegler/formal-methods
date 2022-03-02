@@ -4,7 +4,17 @@
 \usepackage{fancyhdr}
 \usepackage{listings}
 
+\makeatletter
+  \def\@seccntformat#1{\@ifundefined{#1@cntformat}
+    {\csname the#1\endcsname\space}
+    {\csname #1@cntformat\endcsname}}
+  \newcommand\section@cntformat{\thesection.\space}       
+  \newcommand\subsection@cntformat{\thesubsection.\space}
+\makeatother
+
 \newcommand{\code}[1]{\texttt{#1}}
+
+\renewcommand\thesubsection{\alph{subsection}}
 
 \title{EECS 219C: Formal Methods — Assignment 2}
 \author{Parker Ziegler}
@@ -16,13 +26,11 @@
 
 \maketitle
 
-\section{Sum-Sudoku}
+\section{Bit Twiddling Hacks}
 
-\subsection{Bit Twiddling Hacks}
+\subsection{Equivalence of \code{f1} and \code{f2}}
 
-\subsubsection{(a) Equivalence of \code{f1} and \code{f2}}
-
-\noindent My SMT-LIB encoding to check equivalence of \code{f1} and \code{f2} is located in \code{1a.ascii}. Based on my encoding, \code{f1} and \code{f2} \textbf{are not equivalent}. Z3 provides the counterexample $x = 1$, in which \code{f1(x)} evlauates to -1 while \code{f2(x)} evaluates to 1. The full output returned by Z3 is:
+\noindent My SMT-LIB encoding to check equivalence of \code{f1} and \code{f2} is located in \code{1a.smt2}. Based on my encoding, \code{f1} and \code{f2} \textbf{are not equivalent}. Z3 provides the counterexample $x = 1$, in which \code{f1(x)} evlauates to -1 while \code{f2(x)} evaluates to 1. The full output returned by Z3 is:
 
 \begin{lstlisting}
 (
@@ -41,17 +49,215 @@
 )
 \end{lstlisting}
 
-\noindent Cleaning this up to use decimal notation, the full assignment is:
+\noindent A more readable output provided by Z3 using its Python API yields the following \code{list} showing assignments in the counterexample:
 
 \begin{lstlisting}[language=Python]
 [x = 1, v_0 = -1, ret_1 = -1, v_1 = 0, v_2 = 1, ret_2 = 1]
 \end{lstlisting}
 
-\subsubsection{(b) Equivalence of \code{f3} and \code{f4}}
+\subsection{Equivalence of \code{f3} and \code{f4}}
 
-\noindent My SMT-LIB encoding to check equivalence of \code{f3} and \code{f4} is located in \code{1b.ascii}. Based on my encoding, \code{f3} and \code{f4} \textbf{are equivalent}.
+\noindent My SMT-LIB encoding to check equivalence of \code{f3} and \code{f4} is located in \code{1b.smt2}. Based on my encoding, \code{f3} and \code{f4} \textbf{are equivalent}.
+
+\subsection{Synthesizing an equivalent function for \code{f2} without bit-wise operators}
+
+\noindent To synthesize an equivalent function for \code{f2}, we use syntax-guided synthesis (SyGuS) with Linear Integer Arithmetic (LIA) as the background theory. My encoding of the synthesis problem in SyGuS-IF format is located in \code{1c.sy}. I used the CVC4 solver to synthesize the following solution.
+
+\begin{lstlisting}
+(define-fun f2Equiv ((x Int)) Int (ite (<= 0 x) x (- 0 x)))
+\end{lstlisting}
+
+\medskip
+\noindent I restricted the grammar to basic arithmetic operators, conditionals, and arithmetic comparison operators. Reading through the implementation of \code{f2} made it seem that \code{f2} returns the absolute value of its input \code{x}. Therefore, I used the constraint \code{(= (f2Equiv x) (abs x))} to describe the semantics of the function we aim to synthesize.
+
+\section{Sum-Sudoku}
 
 \subsection{Formulate an SMT instance that finds a solution to Sum-Sudoku puzzles}
 
+\noindent My encoding of the Sum-Sudoku problem is located in \code{sumsudoku.py}. My encoding applies the following constraints:
+
+\begin{enumerate}
+  \item Ensure that every integer in a row is distinct; that is, the same integer cannot appear twice in a given row. We encode this using \code{z3.Distinct}.
+  \item Ensure that every integer in a column is distinct; as above, we encode this with \code{z3.Distinct}.
+  \item Ensure that all values in a row sum up to their required row sum. We encode this using \code{z3.Sum} to sum variables and compare the resulting value using numerical equality to its row sum (which is given).
+\end{enumerate}
+
+\medskip
+\noindent We apply the theories of equality and uninterpreted functions (EUF) and linear integer arithmetic (LIA) to specify these constraints. EUF can be used to represent the \code{Distinct} API in \code{Z3}; for example, we can think of \code{Distinct(x, y, z)} as a conjunction of pairwise disequalities $x \neq y \land y \neq z \land x \neq z$. We use LIA as the backing theory for \code{Sum}.
+
+\subsection{Assigning row and column values for a unique Sum-Sudoku problem}
+
+\section{Bag of Chips}
+
+\subsection{Prove that the choose-and-replace process on the bag of chips always halts}
+
+\noindent Our goal is to show that you can only execute the described choose-and-replace process on our bag of chips a finite number of times. To do this, we define a relation $<_{ybr}$ over our state tuples $(\#red_i, \#blue_i, \#yellow_i)$. Our relation has the following semantics:
+
+\medskip
+\noindent $(\#red_{i + 1}, \#blue_{i + 1}, \#yellow_{i + 1}) <_{ybr} (\#red_i, \#blue_i, \#yellow_i)$ iff
+
+\begin{enumerate}
+  \item $\#yellow_{i + 1} < \#yellow_i$, OR
+  \item $\#yellow_{i + 1} = \#yellow_i \land \#blue_{i + 1} < \#blue_i$, OR
+  \item $\#yellow_{i + 1} = \#yellow_i \land \#blue_{i + 1} = \#blue_i \land \#red_{i + 1} < \#red_i$
+\end{enumerate}
+
+\noindent To prove termination, we need to show that for an arbitrary state $(\#red_i, \#blue_i, \#yellow_i)$, a finite number of choose-and-replace operations remain; that is, that $<_{ybr}$ is a well-founded relation. The proof is by induction on the triple $(\#red_i, \#blue_i, \#yellow_i)$.
+
+\medskip
+\noindent \textbf{Base Case}
+
+\medskip
+\noindent There are four base cases to consider. If $(\#red_i, \#blue_i, \#yellow_i)$ is equal to $(0, 0, 0)$, the process has terminated. If $(\#red_i, \#blue_i, \#yellow_i)$ is in the set $\{(0, 0, 1), (0, 1, 0), (1, 0, 0)\}$, then only one step remains — removing the last chip. This proves termination of the base case.
+
+\medskip
+\noindent \textbf{Inductive Step}
+
+\medskip
+\noindent We take as the inductive hypothesis that for any state $(\#red_i, \#blue_i, \#yellow_i)$, the $i + 1$ state:
+
+$$(\#red_{i + 1}, \#blue_{i + 1}, \#yellow_{i + 1})$$
+
+\noindent only has a finite number of choose-and-replace operations that remain. We now apply case analysis based on the semantics of the choose-and-replace operation.
+
+\medskip
+\noindent \emph{Case 1: One of the removed chips is red}
+
+\medskip
+\noindent Starting from an arbitrary state $(\#red, \#blue, \#yellow)$ and removing at least one red chip from the bag yields one of three possible states:
+
+\begin{enumerate}
+  \item $(\#red - 1, \#blue - 1, \#yellow)$
+  \item $(\#red - 1, \#blue, \#yellow - 1)$
+  \item $(\#red - 2, \#blue, \#yellow)$
+\end{enumerate}
+
+\noindent The second restriction of the semantics of the $<_{ybr}$ relation shows that:
+
+$$
+(\#red - 1, \#blue - 1, \#yellow) <_{ybr} (\#red, \#blue, \#yellow)
+$$
+
+\noindent The first restriction shows that:
+
+$$
+(\#red - 1, \#blue, \#yellow - 1) <_{ybr} (\#red, \#blue, \#yellow)
+$$
+
+\noindent Finally, the third restriction shows that:
+
+$$
+(\#red - 2, \#blue, \#yellow) <_{ybr} (\#red, \#blue, \#yellow)
+$$
+
+\noindent Therefore, all new states abide by our well-founded relation for the first case.
+
+\medskip
+\noindent \emph{Case 2: Both of the removed chips are yellow}
+
+\medskip
+\noindent Starting from an arbitrary state $(\#red, \#blue, \#yellow)$ and removing two yellow chips from the bag yields a new state $(\#red, \#blue + 5, \#yellow - 1)$. By the first resitrction of the semantics of the $<_{ybr}$ relation, we can indeed see that:
+
+$$
+(\#red, \#blue + 5, \#yellow - 1) <_{ybr} (\#red, \#blue, \#yellow)
+$$
+
+\medskip
+\noindent \emph{Case 3: One of the removed chips is blue}
+
+\medskip
+\noindent Starting from an arbitrary state $(\#red, \#blue, \#yellow)$ and removing one blue chip from the bag yields one of two potential states:
+
+\begin{enumerate}
+  \item $(\#red + 10, \#blue - 2, \#yellow)$
+  \item $(\#red + 10, \#blue - 1, \#yellow - 1)$
+\end{enumerate}
+
+\medskip
+\noindent For the first case, the second restriction of the semantics of the $<_{ybr}$ relation allow us to conclude that:
+
+$$
+(\#red + 10, \#blue - 2, \#yellow) <_{ybr} (\#red, \#blue, \#yellow)
+$$
+
+\medskip
+\noindent For the second case, the firt restriction of the semantics of the $<_{ybr}$ relation allow us to conclude that:
+
+$$
+(\#red + 10, \#blue - 1, \#yellow - 1) <_{ybr} (\#red, \#blue, \#yellow)
+$$
+
+\medskip
+\noindent In all cases, we've shown that:
+
+$$
+(\#red_{i + 1}, \#blue_{i + 1}, \#yellow_{i + 1}) <_{ybr}(\#red_i, \#blue_i, \#yellow_i)
+$$
+
+\medskip
+\noindent This completes the inductive argument and, with it, the proof of termination.
+
+\subsection{Prove that the variant of the bag of chips problem always halts}
+
+\noindent Our goal is the same as in part (a), but we need to modify our relation slightly to prove termination in this variant of the bag of chips problem. We define this new relation, $<_{ryb}$, to have the following semantics:
+
+$(\#red_{i + 1}, \#blue_{i + 1}, \#yellow_{i + 1}) <_{ryb} (\#red_i, \#blue_i, \#yellow_i)$ iff
+
+\begin{enumerate}
+  \item $\#red_{i + 1} < \#red_i$, OR
+  \item $\#red_{i + 1} = \#red_i \land \#yellow_{i + 1} < \#yellow_i$, OR
+  \item $\#red_{i + 1} = \#red_i \land \#yellow_{i + 1} = \#yellow_i \land \#blue_{i + 1} < \#blue_i$
+\end{enumerate}
+
+\noindent This relation is similar to $<_{ybr}$ with the exception of comparison order. While $<_{ybr}$ compares values of two state triples in the order yellow $\rightarrow$ blue $\rightarrow$ red, our new relation $<_{ryb}$ compares these values in the order red $\rightarrow$ yellow $\rightarrow$ blue. As above, our proof is by induction on the triple $(\#red_i, \#blue_i, \#yellow_i)$.
+
+\medskip
+\noindent \textbf{Base Case}
+
+\medskip
+\noindent The base case is identical to the proof in (a); therefore, we elide it here.
+
+\medskip
+\noindent \textbf{Inductive Step}
+
+\medskip
+\noindent We take as the inductive hypothesis that for any state $(\#red_i, \#blue_i, \#yellow_i)$, the $i + 1$ state:
+
+$$(\#red_{i + 1}, \#blue_{i + 1}, \#yellow_{i + 1})$$
+
+\noindent only has a finite number of choose-and-replace operations that remain. We now apply case analysis based on the semantics of the choose-and-replace operation.
+
+\medskip
+\noindent \emph{Case 1: One of the removed chips is red and the other is yellow}
+
+\medskip
+\noindent Starting from an arbitrary state $(\#red, \#blue, \#yellow)$ and removing one yellow chip and one red chip yields a new state $(\#red, \#blue, \#yellow - 1)$. By the second restriction of the semantics of the $<_{ryb}$ relation, we can see that:
+
+$$
+(\#red, \#blue, \#yellow - 1) <_{ryb} (\#red, \#blue, \#yellow)
+$$
+
+\medskip
+\noindent \emph{Case 2: Both removed chips are yellow}
+
+\medskip
+\noindent Starting from an arbitrary state $(\#red, \#blue, \#yellow)$ and removing two yellow chips yields a new state $(\#red , \#blue + 5, \#yellow - 2)$. By the second restriction of the semantics of the $<_{ryb}$ relation, we can see that:
+
+$$
+(\#red, \#blue + 5, \#yellow - 2) <_{ryb} (\#red, \#blue, \#yellow)
+$$
+
+\medskip
+\noindent \emph{Case 3: One of the removed chips is blue and the other is red}
+
+\medskip
+\noindent Starting from an arbitrary state $(\#red, \#blue, \#yellow)$ and removing one blue chip and one red chip yields a new state $(\#red - 1, \#blue + 9, \#yellow)$. By the first restriction of the semantics of the $<_{ryb}$ relation, we can see that:
+
+$$
+(\#red - 1, \#blue + 9, \#yellow) <_{ryb} (\#red, \#blue, \#yellow)
+$$
+
+\medskip
+\noindent This completes the inductive argument and, with it, the proof of termination.
 
 \end{document}

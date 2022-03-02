@@ -61,8 +61,8 @@ def valid(g):
     # Each column sums to its assigned sum.
     col_sums = [z3.Sum([vars[i][j] for i in range(n)]) == cs[j] for j in range(n)]
 
-    # Concatenate all constraints.
-    return cells + rows + cols + row_sums + col_sums
+    # Conjunct all constraints.
+    return z3.And(*(cells + rows + cols + row_sums + col_sums))
 
 
 # ---- DON'T CHANGE THE CODE BELOW -------
