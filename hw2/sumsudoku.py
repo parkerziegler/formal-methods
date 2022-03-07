@@ -1,6 +1,5 @@
 import itertools
 import z3
-from math import ceil, log
 
 # Parameters for Sum-Sudoku
 n = 3
@@ -40,26 +39,26 @@ def val(v):
 def valid(g):
     """Given the variables 'g' create a formula that encodes validity of the
     sum-sudoku instance for these variables."""
-    print(g)
 
-    (rs, cs, vars, _) = g
+    # Destructure the row sum, column sum, and grid variables.
+    (rs, cs, grid, _) = g
 
-    # Each cell contains a value in the range 1..m, inclusive.
+    # Require that each cell contain a value in the range 1..m, inclusive.
     cells = [
-        z3.And(1 <= vars[i][j], vars[i][j] <= m) for i in range(n) for j in range(n)
+        z3.And(1 <= grid[i][j], grid[i][j] <= m) for i in range(n) for j in range(n)
     ]
 
-    # Each row contains distinct integers.
-    rows = [z3.Distinct(vars[i]) for i in range(n)]
+    # Require that each row contain distinct integers.
+    rows = [z3.Distinct(grid[i]) for i in range(n)]
 
-    # Each column contains distinct integers.
-    cols = [z3.Distinct([vars[i][j] for i in range(n)]) for j in range(n)]
+    # Require that each column contain distinct integers.
+    cols = [z3.Distinct([grid[i][j] for i in range(n)]) for j in range(n)]
 
-    # Each row sums to its assigned sum.
-    row_sums = [z3.Sum(vars[i]) == rs[i] for i in range(n)]
+    # Require that each row sums to its assigned sum.
+    row_sums = [z3.Sum(grid[i]) == rs[i] for i in range(n)]
 
-    # Each column sums to its assigned sum.
-    col_sums = [z3.Sum([vars[i][j] for i in range(n)]) == cs[j] for j in range(n)]
+    # Require that each column sums to its assigned sum.
+    col_sums = [z3.Sum([grid[i][j] for i in range(n)]) == cs[j] for j in range(n)]
 
     # Conjunct all constraints.
     return z3.And(*(cells + rows + cols + row_sums + col_sums))
