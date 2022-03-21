@@ -1,0 +1,123 @@
+module main
+{
+  // The various positions the cars can be in.
+  type pos_t = enum { rd_w_n, rd_w_s, rd_e_n, rd_e_s, 
+                      rd_s_e, rd_s_w, rd_n_e, rd_n_w,
+                      i_nw, i_ne, i_sw, i_se };
+
+  // We now define a number of helper macros.
+
+  // Are we at a source zone?
+  define at_source(p : pos_t) : boolean = 
+    p == rd_w_s || p == rd_s_e || p == rd_e_n || p == rd_n_w;
+
+  // Are we at a sink zone?
+  define at_sink(p : pos_t) : boolean = 
+    p == rd_w_n || p == rd_s_w || p == rd_e_s || p == rd_n_e;
+
+  // The valid values of steps at a source are between 1 and 4.  The value in
+  // steps is the number of steps after which the car will exit the
+  // intersection. 1 = right turn while 4 is a U-turn.
+  define valid_steps_at_src(s : integer) : boolean =
+    (s >= 1 && s <= 4);
+
+  // The valid values of steps are between -1 (at a sink) and 4 (at a source).
+  define valid_steps(s : integer) : boolean =
+    (s >= -1 && s <= 4);
+
+  // Are we inside the intersection?
+  define in_intersection(p : pos_t) : boolean =
+    p == i_nw || p == i_ne || p == i_sw || p == i_se;
+
+  // This procedure returns a potential next position for the car currently at
+  // p. It also decrements the step counter. p2 and p3 are the locations of the
+  // other two cars.
+  procedure next_location (p : pos_t, p2 : pos_t, p3 : pos_t, steps_p : integer) 
+    returns (q : pos_t, steps_q : integer) 
+  {
+    case
+      // If we are a sink, then respawn.
+      at_sink(p)  : { havoc q; assume at_source(q) && q != p2 && q != p3; }
+      p == rd_w_s : { q = i_sw; }
+      p == rd_s_e : { q = i_se; }
+      p == rd_e_n : { q = i_ne; }
+      p == rd_n_w : { q = i_nw; }
+      p == i_sw   : { if (steps_p > 0) { q = i_se; } else { q = rd_s_w; } }
+      p == i_se   : { if (steps_p > 0) { q = i_ne; } else { q = rd_e_s; } }
+      p == i_ne   : { if (steps_p > 0) { q = i_nw; } else { q = rd_n_e; } }
+      p == i_nw   : { if (steps_p > 0) { q = i_sw; } else { q = rd_w_n; } }
+    esac
+    if (at_sink(p)) {
+        // Reset steps if we respawned.
+        havoc steps_q;
+        assume valid_steps_at_src(steps_q);
+    } else {
+        // Decrement steps.
+        steps_q = steps_p - 1;
+    }
+  }
+
+  // This function returns a tuple which tells us which car(s) are allowed to move. 
+  procedure can_move(c1 : pos_t, c2 : pos_t, c3 : pos_t)
+    returns (move_p1 : boolean, move_p2 : boolean, move_p3 : boolean)
+  {
+      // TODO: implement this.
+  }
+
+  // NOTE: There are three cars in the system.
+
+  // Positions of the three cars.
+  var car1_pos, car2_pos, car3_pos : pos_t;
+  // Potential next position of the cars.
+  var car1_nxt, car2_nxt, car3_nxt : pos_t;
+  // The number of steps before the car will exit the intersection.
+  var steps1, steps2, steps3 : integer;
+  // Potential next values for the steps variables.
+  var steps1_nxt, steps2_nxt, steps3_nxt : integer;
+  // How long have we been waiting (either at the source or in the intersection)?
+  var wait_cnt1, wait_cnt2, wait_cnt3 : integer;
+  // Should we move the corresponding car in this step?
+  var move1, move2, move3 : boolean;
+
+  init {
+    assume (car1_pos != car2_pos) && (car2_pos != car3_pos) && (car3_pos != car1_pos);
+    assume (valid_steps_at_src(steps1) && valid_steps_at_src(steps2) && valid_steps_at_src(steps3));
+    assume (at_source(car1_pos) && at_source(car2_pos) && at_source(car3_pos));
+    wait_cnt1, wait_cnt2, wait_cnt3 = 0, 0, 0;
+  }
+
+  next {
+    if (at_sink(car1_pos)) { wait_cnt1' = 0; } else { wait_cnt1' = wait_cnt1 + 1; }
+    if (at_sink(car2_pos)) { wait_cnt2' = 0; } else { wait_cnt2' = wait_cnt2 + 1; }
+    if (at_sink(car3_pos)) { wait_cnt3' = 0; } else { wait_cnt3' = wait_cnt3 + 1; }
+
+    call (car1_nxt', steps1_nxt') = next_location(car1_pos, car2_pos, car3_pos, steps1);
+    call (car2_nxt', steps2_nxt') = next_location(car2_pos, car3_pos, car1_pos, steps2);
+    call (car3_nxt', steps3_nxt') = next_location(car3_pos, car1_pos, car2_pos, steps3);
+
+    call (move1', move2', move3') = can_move(car1_pos, car2_pos, car3_pos);
+
+    // set next state
+    car1_pos' = if (move1') then car1_nxt' else car1_pos;
+    car2_pos' = if (move2') then car2_nxt' else car2_pos;
+    car3_pos' = if (move3') then car3_nxt' else car3_pos;
+
+    steps1' = if (move1') then steps1_nxt' else steps1;
+    steps2' = if (move2') then steps2_nxt' else steps2;
+    steps3' = if (move3') then steps3_nxt' else steps3;
+  }
+
+  // TODO: define the two properties.
+  invariant no_collision: false; 
+  invariant bounded_exit: false;
+
+  // Proof script.
+  control {
+    // NOTE: You may want to set the unroll bound to a lower value while
+    // debugging your model.
+    v = unroll(16);
+    check;
+    print_results;
+    v.print_cex(car1_pos, car2_pos, car3_pos, steps1, steps2, steps3);
+  }
+}

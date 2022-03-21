@@ -1,0 +1,76 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{parskip}
+
+\makeatletter
+  \def\@seccntformat#1{\@ifundefined{#1@cntformat}
+    {\csname the#1\endcsname\space}
+    {\csname #1@cntformat\endcsname}}
+  \newcommand\section@cntformat{\thesection.\space}       
+  \newcommand\subsection@cntformat{\thesubsection.\space}
+\makeatother
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\renewcommand\thesubsection{\alph{subsection}}
+
+\title{EECS 219C: Formal Methods — Assignment 2}
+\author{Parker Ziegler}
+\pagestyle{fancy}
+\lhead{EECS 219C: Formal Methods — Assignment 2}
+\rhead{Parker Ziegler}
+
+\begin{document}
+
+\maketitle
+
+\section{Interrupt-Driven Program}
+
+\subsection{Describing properties of the \code{Sys} module}
+
+We can describe the properties of the \code{Sys} module as follows:
+
+\begin{enumerate}
+  \item \textbf{\code{invariant main\_ISR\_mutex}} — this property requires that execution of \code{main} and \code{ISR} is mutually exclusive. That is, if \code{main} is executing, \code{ISR} cannot be executing at the same time (or vice versa).
+  \item \textbf{\code{property[LTL] one\_step\_ISR\_return}} — this property requires that, globally, if \code{ISR} has just returned then, in the next state, \code{ISR} will not return.
+  \item \textbf{\code{property[LTL] main\_after\_ISR}} — this property requires that, globally, if \code{ISR} is currently enabled to run and, in the next state, \code{main} is enabled to run, this implies that \code{ISR} has just returned.
+  \item \textbf{\code{property[LTL] ISR\_after\_main}} — this property requires that, globally, if \code{main} is enabled and, in the next state, \code{ISR} is enabled, this implies that an interrupt has occurred.
+\end{enumerate}
+
+\subsection{Interpreting counterexamples from the verifier}
+
+Running \code{uclid} with all properties commented out \emph{except} for \code{main\_after\_ISR} results in the following counterexample:
+
+\begin{lstlisting}
+  CEX for vobj [Step #3] property main_after_ISR:safety @ IntSW.ucl, line 105
+  =================================
+  Step #0
+    mode : main_t
+    M_enable : true
+    I_enable : false
+    return_ISR : false
+    assert_intr : initial_1570_assert_intr
+  [Assertion Failure]: More than one definition found!
+\end{lstlisting}
+
+This counterexample is found for step 3 in our transition system. In this case 
+
+Likewise, running \code{uclid} with all properties commented out \emph{except} for \code{ISR\_after\_main} results in the following counterexample:
+
+\begin{lstlisting}
+  CEX for vobj [Step #2] property ISR_after_main:safety @ IntSW.ucl, line 106
+  =================================
+  Step #0
+    mode : main_t
+    M_enable : true
+    I_enable : false
+    return_ISR : false
+    assert_intr : false
+  [Assertion Failure]: More than one definition found!
+\end{lstlisting}
+
+\end{document}
