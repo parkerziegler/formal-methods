@@ -46,31 +46,80 @@ We can describe the properties of the \code{Sys} module as follows:
 Running \code{uclid} with all properties commented out \emph{except} for \code{main\_after\_ISR} results in the following counterexample:
 
 \begin{lstlisting}
-  CEX for vobj [Step #3] property main_after_ISR:safety @ IntSW.ucl, line 105
-  =================================
-  Step #0
-    mode : main_t
-    M_enable : true
-    I_enable : false
-    return_ISR : false
-    assert_intr : initial_1570_assert_intr
-  [Assertion Failure]: More than one definition found!
+CEX for vobj [Step #3] property main_after_ISR:safety @ IntSW.ucl, line 105
+=================================
+Step #0
+  mode : main_t
+  M_enable : true
+  I_enable : false
+  return_ISR : false
+  assert_intr : initial_1570_assert_intr
+=================================
+=================================
+Step #1
+  mode : ISR_t
+  M_enable : true
+  I_enable : false
+  return_ISR : false
+  assert_intr : false
+=================================
+=================================
+Step #2
+  mode : main_t
+  M_enable : false
+  I_enable : true
+  return_ISR : false
+  assert_intr : false
+=================================
+=================================
+Step #3
+  mode : main_t
+  M_enable : true
+  I_enable : false
+  return_ISR : false
+  assert_intr : false
+=================================
+
+// BMC counterexamples for step 4 and step 5 elided.
+
+Finished execution for module: Sys.
 \end{lstlisting}
 
-This counterexample is found for step 3 in our transition system. In this case 
+In this counterexample, the violation of \code{main\_after\_ISR} occurs between step 2 and step 3 of the transition system. At step 2, we see that \code{I\_enable} is set to $true$ and \code{M\_enable} is set to $false$, indicating that \code{ISR} is enabled to run. Additionally, the value of \code{return\_ISR} is $false$, indicating that \code{ISR} has not yet returned. In the next step, \code{I\_enable} is $false$ and \code{M\_enable} is $true$; this indicates that \code{ISR} should have completed running and \code{main} can safely be enabled. However, \code{return\_ISR} is still $false$. In this instance, we have a case where \code{ISR} \emph{was enabled}, but we have no indication that it ever returned before \code{main} was enabled. This violates the property that if \code{ISR} was enabled and, in the next state, \code{main} is enabled, then \code{return\_ISR} \emph{must} be $true$.
 
-Likewise, running \code{uclid} with all properties commented out \emph{except} for \code{ISR\_after\_main} results in the following counterexample:
+Running \code{uclid} with all properties commented out \emph{except} for \code{ISR\_after\_main} results in the following counterexample:
 
 \begin{lstlisting}
-  CEX for vobj [Step #2] property ISR_after_main:safety @ IntSW.ucl, line 106
-  =================================
-  Step #0
-    mode : main_t
-    M_enable : true
-    I_enable : false
-    return_ISR : false
-    assert_intr : false
-  [Assertion Failure]: More than one definition found!
+CEX for vobj [Step #2] property ISR_after_main:safety @ IntSW.ucl, line 106
+=================================
+Step #0
+  mode : main_t
+  M_enable : true
+  I_enable : false
+  return_ISR : false
+  assert_intr : false
+=================================
+=================================
+Step #1
+  mode : ISR_t
+  M_enable : true
+  I_enable : false
+  return_ISR : false
+  assert_intr : false
+=================================
+=================================
+Step #2
+  mode : main_t
+  M_enable : false
+  I_enable : true
+  return_ISR : false
+  assert_intr : false
+
+// BMC counterexamples for steps 3, 4, and 5 elided.
+
+Finished execution for module: Sys.
 \end{lstlisting}
+
+In this counterexample, the violation of \code{ISR\_after\_main} occurs between step 1 and step 2 of the transition system. At step 1, we see that \code{M\_enable} is set to $true$ while \code{I\_enable} is set to $false$ and we are "in" \code{ISR}. In step 2, \code{I\_enable} is $true$, \code{M\_enable} is $false$, and we are "in" \code{main}. This second state would indicate that an interrupt has been issued; however, \code{assert\_intr} is $false$. This indicates that we transitioned into enabling \code{ISR} without an interrupt ever occurring. This violates the property that, if \code{main} is enabled in the current state and, in the next state, \code{ISR} is enabled, then \code{assert\_intr} \emph{must} be $true$.
 
 \end{document}

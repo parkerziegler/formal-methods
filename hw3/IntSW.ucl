@@ -48,7 +48,7 @@ module ISR_func {
        pc == idle : { pc' = D; return_ISR' = false; }
        pc == D && timerCount != 0 : { pc' = E; return_ISR' = false; }
        pc == D && timerCount == 0 : { pc' = idle; return_ISR' = true; }
-       pc == E : { timerCount' = timerCount-1; pc' = idle; return_ISR' = true; }
+       pc == E : { timerCount' = timerCount - 1; pc' = idle; return_ISR' = true; }
      esac
    } else {
      pc' = pc;
@@ -79,7 +79,13 @@ module Sys { // composition of main function and ISR
   procedure update_mode()
     modifies mode;
   {
-    havoc mode;
+    if (M_enable && assert_intr) {
+      mode = ISR_t;
+    }
+
+    if (I_enable && return_ISR) {
+      mode = main_t;
+    }
   }
   // NO MODIFICATION TO CODE BELOW
   
@@ -91,7 +97,7 @@ module Sys { // composition of main function and ISR
   }
 
   next {
-    call update_mode(); // update to mode take effect on next step
+    call update_mode(); // update to mode takes effect on next step
     // Note these updates use the old value of mode.
     M_enable' = (mode == main_t);
     I_enable' = (mode == ISR_t);
@@ -100,10 +106,10 @@ module Sys { // composition of main function and ISR
   }
 
  // PROPERTIES IN Sys MODULE
- // invariant main_ISR_mutex: (M_enable != I_enable);
- // property[LTL] one_step_ISR_return: G(return_ISR ==> X(!return_ISR));
+ invariant main_ISR_mutex: (M_enable != I_enable);
+ property[LTL] one_step_ISR_return: G(return_ISR ==> X(!return_ISR));
  property[LTL] main_after_ISR: G((I_enable && X(M_enable)) ==> return_ISR);
- // property[LTL] ISR_after_main: G((M_enable && X(I_enable)) ==> (assert_intr));
+ property[LTL] ISR_after_main: G((M_enable && X(I_enable)) ==> (assert_intr));
 
  control {
     // check the invariant.
@@ -119,7 +125,7 @@ module Sys { // composition of main function and ISR
     vobj = bmc(5);
     check;
     print_results;
-    vobj.print_cex(mode,M_enable,I_enable,return_ISR,assert_intr,main_f.pc,ISR_f.pc);
+    vobj.print_cex(mode,M_enable,I_enable,return_ISR,assert_intr);
   }
 }
 
