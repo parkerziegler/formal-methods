@@ -5,6 +5,7 @@
 \usepackage{graphicx}
 \usepackage{listings}
 \usepackage{parskip}
+\usepackage{amsmath}
 
 \makeatletter
   \def\@seccntformat#1{\@ifundefined{#1@cntformat}
@@ -80,7 +81,7 @@ Step #3
   assert_intr : false
 =================================
 
-// BMC counterexamples for step 4 and step 5 elided.
+// Steps 4 and step 5 elided.
 
 Finished execution for module: Sys.
 \end{lstlisting}
@@ -115,11 +116,141 @@ Step #2
   return_ISR : false
   assert_intr : false
 
-// BMC counterexamples for steps 3, 4, and 5 elided.
+// Steps 3, 4, and 5 elided.
 
 Finished execution for module: Sys.
 \end{lstlisting}
 
-In this counterexample, the violation of \code{ISR\_after\_main} occurs between step 1 and step 2 of the transition system. At step 1, we see that \code{M\_enable} is set to $true$ while \code{I\_enable} is set to $false$ and we are "in" \code{ISR}. In step 2, \code{I\_enable} is $true$, \code{M\_enable} is $false$, and we are "in" \code{main}. This second state would indicate that an interrupt has been issued; however, \code{assert\_intr} is $false$. This indicates that we transitioned into enabling \code{ISR} without an interrupt ever occurring. This violates the property that, if \code{main} is enabled in the current state and, in the next state, \code{ISR} is enabled, then \code{assert\_intr} \emph{must} be $true$.
+In this counterexample, the violation of \code{ISR\_after\_main} occurs between step 1 and step 2 of the transition system. At step 1, we see that \code{M\_enable} is set to $true$ while \code{I\_enable} is set to $false$, indicating we are in the \code{ISR} function. In step 2, \code{I\_enable} is $true$, \code{M\_enable} is $false$, indicating we moved execution to the \code{main} function. This second state would imply that an interrupt has been issued; however, \code{assert\_intr} is $false$. This indicates that we transitioned into enabling \code{ISR} without an interrupt ever occurring. This violates the property that, if \code{main} is enabled in the current state and, in the next state, \code{ISR} is enabled, then \code{assert\_intr} \emph{must} be $true$.
+
+\subsection{Correctly composing \code{main} and \code{ISR}}
+
+See my updated definition of the \code{update\_mode} procedure.
+
+\subsection{Composing \code{Sys} and \code{Env} using asynchronous composition with interleaving semantics}
+
+See my updates to the \code{init} and \code{next} blocks of the \code{main} module.
+
+The key change introduced in my updates is ensuring that \code{turn} is non-deterministically updated in the composition of \code{Sys} and \code{Env} using \code{havoc}. In an asynchronous composition of \code{Sys} and \code{Env} with interleaving semantics, either \code{Sys} can transition and \code{Env} stutters, or \code{Env} can transition and \code{Sys} stutters:
+
+\begin{align*}
+(\delta((Sys, Env), (Sys', Env')) &= \delta(Sys, Sys') \land Env = Env) \lor \\
+(\delta((Sys, Env), (Sys', Env')) &= Sys = Sys \land \delta(Env, Env'))
+\end{align*}
+
+Importantly, however, \emph{which} of these entities transitions in a given step is non-deterministic. For example, we could have a model where only \code{Env} ever transitions.
+
+This model does lead to a violation of the \code{consec\_main\_pc\_values} LTL property. \code{uclid} provides a counterexample in which only \code{Env} ever transitions. In this case, the \code{main} function is always at its initial program counter $A$ but, because \code{Sys} never runs, it never transitions to program counter $B$. This violates the property that, at some point in the future, \code{main} will transition from program counter $A$ to program counter $B$.
+
+\section{Smart Intersection}
+
+\subsection{Encoding the \code{no\_collision} invariant}
+
+In our modeled intersection, we encode collisions as situations in which two of our autonomous vehicles are in the same location in the intersection. To do this, we use pairwise location comparisons between all vehicles. These can be enumerated as follows:
+
+\begin{enumerate}
+  \item If \code{car1\_pos} and \code{car2\_pos} are in the intersection, this implies that \code{car1\_pos} is not equal to \code{car2\_pos}.
+  \item If \code{car2\_pos} and \code{car3\_pos} are in the intersection, this implies that \code{car2\_pos} is not equal to \code{car3\_pos}.
+  \item If \code{car1\_pos} and \code{car3\_pos} are in the intersection, this implies that \code{car1\_pos} is not equal to \code{car3\_pos}.
+\end{enumerate}
+
+The formal encoding of our \code{no\_collision} invariant is:
+
+\begin{lstlisting}
+invariant no_collision: (
+  (in_intersection(car1_pos) && in_intersection(car2_pos) ==> car1_pos != car2_pos) &&
+  (in_intersection(car2_pos) && in_intersection(car3_pos) ==> car2_pos != car3_pos) &&
+  (in_intersection(car1_pos) && in_intersection(car3_pos) ==> car1_pos != car3_pos)
+);
+\end{lstlisting}
+
+This invariant is stronger than just doing pairwise comparisons of car locations. A "collision" should be restricted to only occurring within an intersection.
+
+\subsection{Defining the \code{can\_move} procedure}
+
+To determine whether or not a car can move, we simply check whether a given car is at a source location, sink location, or in the intersection. If a given car is at a source location or in the intersection, we return $true$ for that car. Our reasoning is that:
+
+\begin{enumerate}
+  \item From a source location, a car can always move into the intersection.
+  \item From an intersection location, a car can always move into either a different intersection location or a sink location.
+\end{enumerate}
+
+Conversely, if a car is at a sink location, we return $false$. Our reasoning is that being at a sink location requires a respawn, and therefore the car cannot move in the current transition.
+
+This definition of the \code{can\_move} procedure takes advantage of the fact that the \code{next\_location} procedure already enumerates the exact locations all cars can enter in the current transition. Additionally, our \code{no\_collision} invariant provides a set of constraints guiding where our cars can move while avoiding collisions. All \code{can\_move} needs to encode, then, is a set of constraints that bounds a given car's movement based on its location at a source, sink, or intersection location.
+
+\subsection{Encoding the \code{bounded\_exit} invariant}
+
+In order to ensure that each car exits the intersection in a bounded number of steps, we want to ensure that the number of steps it takes combined with the number of times it waits is always less than or equal to 4, the maximum number of steps it can take to move through the intersection. We encode this invariant as follows:
+
+\begin{lstlisting}
+  invariant bounded_exit: steps1 + wait_cnt1 <= 4 && steps2 + wait_cnt2 <= 4 && steps3 + wait_cnt3 <= 4;
+\end{lstlisting}
+
+The reasoning behind this invariant is based on the relationship between steps and waits for each car. A car's step count is decremented if the car is both able to move and \emph{does} move to a potential next location. Conversely, its wait count is incremented on every transition as long as it hasn't reached a sink location. If a car's step count plus its wait count exceeds 4, this would imply that the car has either:
+
+\begin{enumerate}
+  \item Entered the intersection and has been waiting such that the number of steps its taken plus the number of times its waited exceeds the maximum number of steps it can take to exit the intersection. This would correspond to a situation in which the car is "idling" for an indefinite period of time in the intersection.
+  \item Not entered the intersection and is "idling" at a source location.
+\end{enumerate}
+
+With this invariant, we ensure both that all cars enter the intersection \emph{and} that they exit the intersection in the specified number of steps.
+
+\section{Linear Temporal Logic (LTL)}
+
+\subsection{A labeled transition system for Sisyphus' task}
+
+To define a labeled transition system for Sisyphus' task, we must define the constituent parts of our transition system. Recall that a labeled transition system, or Kripke structure, takes the form:
+
+$$
+(S, S_0, \delta, L)
+$$
+
+In order to define our set of states $S$ and initial state $S_0$, we need to define the variables that make up our state. We'll use four Boolean valued variables to represent our four entities, each with a value of 0 or 1 indicating whether they are on the western bank of the river (start) or the eastern bank of the river (end):
+
+\begin{enumerate}
+  \item \code{s} — Sisyphus' location 
+  \item \code{g} — the goat's location
+  \item \code{w} — the wolf's location
+  \item \code{c} — the cabbage's location
+\end{enumerate}
+
+Our initial state $S_0$ can then be described by the set $\{s = 0, g = 0, w = 0, c = 0\}$. Our set of states $S$ is the set of all Boolean combinations of these states, such that two invariants are not violated: 
+
+\begin{enumerate}
+  \item $w = g \land g \neq s$ — the wolf and goat are on the same side and Sisyphus is not on that side.
+  \item $c = g \land g \neq s$ — the cabbage and goat are on the same side and Sisyphus is not on that side.
+\end{enumerate}
+
+In this system, a transition $\delta$ involves flipping the values of at most two entities, one of which must be $s$. This reflects the constraint that the boat only has room for at most two entities, one of which must be Sisyphus himself.
+
+Finally, our labeling function defines all possible
+
+\subsection{LTL formula for Sisyphus' task}
+
+To define LTL formula for Sisyphus' task and the constraints that the goat / wolf and goat / cabbage not be left alone on the same bank, we use the same variables as above.
+
+Let us now describe the reasoning for our LTL formula. First, we know that if the cabbage and the goat are on the same side ($c = g$), then Sisyphus must be on that side as well ($c = g \Longrightarrow c = g = s$). Likewise, if the goat and the wolf are on the same side ($g = w$), then Sisyphus must be on that side as well ($g = w \Longrightarrow g = w = s$). Notice that the goat, $g$, appears twice in these constraints. Combining these together, we can arrive at the following LTL formula:
+
+$$
+G(c = g \lor g = w \Longrightarrow g = s)
+$$
+
+Concretely, this formula states that, globally, if the cabbage and the goat are on the same bank or if the goat and the wolf are on the same bank, then Sisyphus \emph{must} be on the same bank as the goat.
+
+\subsection{A solution to Sisyphus' task}
+
+Uncovering a solution to Sisyphus' task relies on making one key observation: there is no restriction stating that Sisyphus cannot \emph{return} items to the opposing bank during the transport of all three items from one bank to the other. With this observation, the following procedure solves Sisyphus' task:
+
+\begin{enumerate}
+  \item Assume all items are on the western bank to start — $s = 0, g = 0, w = 0, c = 0$.
+  \item Bring the goat to the eastern bank — $s = 1, g = 1, w = 0, c = 0$.
+  \item Return to the western bank — $s = 0, g = 1, w = 0, c = 0$.
+  \item Bring the wolf to the eastern bank — $s = 1, g = 1, w = 1, c = 0$.
+  \item Return to the western bank \emph{with the goat} — $s = 0, g = 0, w = 1, c = 0$.
+  \item Bring the cabbage to the eastern bank — $s = 1, g = 0, w = 1, c = 1$.
+  \item Return to the eastern bank — $s = 0, g = 0, w = 1, c = 1$.
+  \item Bring the goat to the western bank — $s = 1, g = 1, w = 1, c = 1$.
+\end{enumerate}
 
 \end{document}

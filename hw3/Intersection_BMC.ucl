@@ -61,7 +61,24 @@ module main
   procedure can_move(c1 : pos_t, c2 : pos_t, c3 : pos_t)
     returns (move_p1 : boolean, move_p2 : boolean, move_p3 : boolean)
   {
-      // TODO: implement this.
+      // A car can move as long as it's not in a sink position.
+      if (!at_sink(c1)) {
+        move_p1 = true;
+      } else {
+        move_p1 = false;
+      }
+
+      if (!at_sink(c2)) {
+        move_p2 = true;
+      } else {
+        move_p2 = false;
+      }
+
+      if (!at_sink(c3)) {
+        move_p3 = true;
+      } else {
+        move_p3 = false;
+      }
   }
 
   // NOTE: There are three cars in the system.
@@ -108,8 +125,12 @@ module main
   }
 
   // TODO: define the two properties.
-  invariant no_collision: false; 
-  invariant bounded_exit: false;
+  invariant no_collision: (
+    (in_intersection(car1_pos) && in_intersection(car2_pos) ==> car1_pos != car2_pos) &&
+    (in_intersection(car2_pos) && in_intersection(car3_pos) ==> car2_pos != car3_pos) &&
+    (in_intersection(car1_pos) && in_intersection(car3_pos) ==> car1_pos != car3_pos)
+  );
+  invariant bounded_exit: steps1 + wait_cnt1 <= 4 && steps2 + wait_cnt2 <= 4 && steps3 + wait_cnt3 <= 4;
 
   // Proof script.
   control {
@@ -118,6 +139,6 @@ module main
     v = unroll(16);
     check;
     print_results;
-    v.print_cex(car1_pos, car2_pos, car3_pos, steps1, steps2, steps3);
+    v.print_cex(car1_pos, car2_pos, car3_pos, steps1, steps2, steps3, wait_cnt1, wait_cnt2, wait_cnt3);
   }
 }

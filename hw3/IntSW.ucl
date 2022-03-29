@@ -125,7 +125,7 @@ module Sys { // composition of main function and ISR
     vobj = bmc(5);
     check;
     print_results;
-    vobj.print_cex(mode,M_enable,I_enable,return_ISR,assert_intr);
+    vobj.print_cex(mode,M_enable,I_enable,return_ISR,assert_intr,main_f.pc,ISR_f.pc);
   }
 }
 
@@ -151,10 +151,10 @@ module main {
   instance Sys_i : Sys(assert_intr : (assert_intr));
 
   // YOU WILL NEED TO MODIFY THE UPDATE TO turn IN THE init AND next BLOCKS BELOW
-  init { turn = true; }
+  init { havoc turn; }
 
-  next { 
-    turn' = !turn;
+  next {
+    havoc turn;
     if (turn) { 
       next (Sys_i); 
     } else { 
@@ -170,7 +170,7 @@ module main {
     check;
     print_results;
     vobj.print_cex(
-        turn, assert_intr, 
+        turn, assert_intr,
         Sys_i.timerCount, Sys_i.mode,
         Sys_i.M_enable, Sys_i.I_enable,
         Sys_i.main_f.pc, Sys_i.ISR_f.pc
