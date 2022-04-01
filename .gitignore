@@ -15,3 +15,7 @@ hw1/dimacs/target
 
 .DS_Store
 .vscode
+
+# Spin
+pan
+*.pml.trail

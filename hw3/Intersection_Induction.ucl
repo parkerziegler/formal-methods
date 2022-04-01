@@ -61,23 +61,50 @@ module main
   procedure can_move(c1 : pos_t, c2 : pos_t, c3 : pos_t)
     returns (move_p1 : boolean, move_p2 : boolean, move_p3 : boolean)
   {
-      // A car can move as long as it's not in a sink position.
-      if (!at_sink(c1)) {
-        move_p1 = true;
-      } else {
-        move_p1 = false;
+      // Define variables to store the potential next location of each car.
+      var c1_next: pos_t;
+      var c2_next: pos_t;
+      var c3_next: pos_t;
+
+      // Define variables to hold steps to appease uclid when calling the next_location procedure.
+      var c1_steps: integer;
+      var c2_steps: integer;
+      var c3_steps: integer;
+
+      // Initialize all move variables to false.
+      move_p1 = false;
+      move_p2 = false;
+      move_p3 = false;
+
+      // If a car is at a sink or in the intersection, enable its movement.
+      if (at_sink(c1) || in_intersection(c1)) {
+          move_p1 = true;
       }
 
-      if (!at_sink(c2)) {
-        move_p2 = true;
-      } else {
-        move_p2 = false;
+      if (at_sink(c2) || in_intersection(c2)) {
+          move_p2 = true;
       }
 
-      if (!at_sink(c3)) {
-        move_p3 = true;
-      } else {
-        move_p3 = false;
+      if (at_sink(c3) || in_intersection(c3)) {
+          move_p3 = true;
+      }
+
+      // Derive the next location of all cars.
+      call (c1_next, c1_steps) = next_location(c1, c2, c3, 1);
+      call (c2_next, c2_steps) = next_location(c2, c3, c1, 1);
+      call (c3_next, c3_steps) = next_location(c3, c1, c2, 1);
+
+      // If a car is at a source, check that it's intersection entrance is clear.
+      if (at_source(c1) && c1_next != c2_next && c1_next != c3_next) {
+          move_p1 = true;
+      }
+
+      if (at_source(c2) && c2_next != c3_next && c2_next != c1_next) {
+          move_p2 = true;
+      }
+
+      if (at_source(c3) && c3_next != c1_next && c3_next != c2_next) {
+          move_p3 = true;
       }
   }
 

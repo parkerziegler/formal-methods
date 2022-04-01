@@ -19,10 +19,10 @@
 
 \renewcommand\thesubsection{\alph{subsection}}
 
-\title{EECS 219C: Formal Methods — Assignment 2}
+\title{EECS 219C: Formal Methods — Assignment 3}
 \author{Parker Ziegler}
 \pagestyle{fancy}
-\lhead{EECS 219C: Formal Methods — Assignment 2}
+\lhead{EECS 219C: Formal Methods — Assignment 3}
 \rhead{Parker Ziegler}
 
 \begin{document}
@@ -125,22 +125,22 @@ In this counterexample, the violation of \code{ISR\_after\_main} occurs between 
 
 \subsection{Correctly composing \code{main} and \code{ISR}}
 
-See my updated definition of the \code{update\_mode} procedure.
+See my updated definition of the \code{update\_mode} procedure in \code{Int\_SW.ucl}.
 
 \subsection{Composing \code{Sys} and \code{Env} using asynchronous composition with interleaving semantics}
 
-See my updates to the \code{init} and \code{next} blocks of the \code{main} module.
+See my updates to the \code{init} and \code{next} blocks of the \code{main} module in \code{Int\_SW.ucl}.
 
-The key change introduced in my updates is ensuring that \code{turn} is non-deterministically updated in the composition of \code{Sys} and \code{Env} using \code{havoc}. In an asynchronous composition of \code{Sys} and \code{Env} with interleaving semantics, either \code{Sys} can transition and \code{Env} stutters, or \code{Env} can transition and \code{Sys} stutters:
+The key change introduced in my updates is ensuring that \code{turn} is non-deterministically updated in the \code{init} and \code{next} blocks of the \code{main} module using \code{havoc}. In an asynchronous composition of \code{Sys} and \code{Env} with interleaving semantics, either \code{Sys} can transition and \code{Env} stutters, or \code{Env} can transition and \code{Sys} stutters:
 
 \begin{align*}
 (\delta((Sys, Env), (Sys', Env')) &= \delta(Sys, Sys') \land Env = Env) \lor \\
 (\delta((Sys, Env), (Sys', Env')) &= Sys = Sys \land \delta(Env, Env'))
 \end{align*}
 
-Importantly, however, \emph{which} of these entities transitions in a given step is non-deterministic. For example, we could have a model where only \code{Env} ever transitions.
+Importantly, \emph{which} of these entities transitions in a given step is non-deterministic. For example, we could have a model where only \code{Sys} ever transitions or only \code{Env} ever transitions.
 
-This model does lead to a violation of the \code{consec\_main\_pc\_values} LTL property. \code{uclid} provides a counterexample in which only \code{Env} ever transitions. In this case, the \code{main} function is always at its initial program counter $A$ but, because \code{Sys} never runs, it never transitions to program counter $B$. This violates the property that, at some point in the future, \code{main} will transition from program counter $A$ to program counter $B$.
+This composition does lead to a violation of the \code{consec\_main\_pc\_values} LTL property. \code{uclid} provides a counterexample in which only \code{Env} ever transitions. In this case, the \code{main} function is always at its initial program counter $A$ but, because \code{Sys} never runs, it never transitions to program counter $B$. This violates the property that, at some point in the future, \code{main} will transition from program counter $A$ to program counter $B$.
 
 \section{Smart Intersection}
 
@@ -164,37 +164,27 @@ invariant no_collision: (
 );
 \end{lstlisting}
 
-This invariant is stronger than just doing pairwise comparisons of car locations. A "collision" should be restricted to only occurring within an intersection.
+This invariant is stronger than just doing pairwise comparisons of car locations. A "collision" should be restricted to only occurring within an intersection. Since cars are respawned at source locations non-deterministically, we don't consider two cars at the same source as a "collision".
 
 \subsection{Defining the \code{can\_move} procedure}
 
-To determine whether or not a car can move, we simply check whether a given car is at a source location, sink location, or in the intersection. If a given car is at a source location or in the intersection, we return $true$ for that car. Our reasoning is that:
+To determine whether or not a car can move, we use an algorithm that gives priority to cars that are currently in the intersection over cars that are at a source location. The algorithm begins by first checking if a car is at a sink location or if it's currently in the intersection. If the car is at a sink location, we immediately set its \code{move} flag to $true$, because it must move to (respawn at) a source location in the next step. If the car is in the intersection, we also set its \code{move} flag to $true$, giving it "priority" over cars still at source locations.
 
-\begin{enumerate}
-  \item From a source location, a car can always move into the intersection.
-  \item From an intersection location, a car can always move into either a different intersection location or a sink location.
-\end{enumerate}
-
-Conversely, if a car is at a sink location, we return $false$. Our reasoning is that being at a sink location requires a respawn, and therefore the car cannot move in the current transition.
-
-This definition of the \code{can\_move} procedure takes advantage of the fact that the \code{next\_location} procedure already enumerates the exact locations all cars can enter in the current transition. Additionally, our \code{no\_collision} invariant provides a set of constraints guiding where our cars can move while avoiding collisions. All \code{can\_move} needs to encode, then, is a set of constraints that bounds a given car's movement based on its location at a source, sink, or intersection location.
+We then handle cars at source locations. We only allow a car at a source location to move if its next location (computed by calling the \code{next\_location} procedure with a $steps$ argument of 1) is not equal to the next locations of the other two cars. In other words, we only allow a car at source locations to move if cars currently in the intersection will not occupy the same location in the next step.
 
 \subsection{Encoding the \code{bounded\_exit} invariant}
 
-In order to ensure that each car exits the intersection in a bounded number of steps, we want to ensure that the number of steps it takes combined with the number of times it waits is always less than or equal to 4, the maximum number of steps it can take to move through the intersection. We encode this invariant as follows:
+In order to ensure that each car exits the intersection in a bounded number of steps, we simply check that its \code{wait\_count} does not exceed the total number of steps taken in the bounded model checking process.
 
 \begin{lstlisting}
-  invariant bounded_exit: steps1 + wait_cnt1 <= 4 && steps2 + wait_cnt2 <= 4 && steps3 + wait_cnt3 <= 4;
+  invariant bounded_exit: wait_cnt1 < 16 && wait_cnt2 < 16 && wait_cnt3 < 16;
 \end{lstlisting}
 
-The reasoning behind this invariant is based on the relationship between steps and waits for each car. A car's step count is decremented if the car is both able to move and \emph{does} move to a potential next location. Conversely, its wait count is incremented on every transition as long as it hasn't reached a sink location. If a car's step count plus its wait count exceeds 4, this would imply that the car has either:
+A car's wait count is incremented on every transition of the system as long as it hasn't reached a sink location. Therefore, if a car's wait count reached the number of steps of the bounded model checking process, this would imply that the car was either stuck at a source location or in the intersection.
 
-\begin{enumerate}
-  \item Entered the intersection and has been waiting such that the number of steps its taken plus the number of times its waited exceeds the maximum number of steps it can take to exit the intersection. This would correspond to a situation in which the car is "idling" for an indefinite period of time in the intersection.
-  \item Not entered the intersection and is "idling" at a source location.
-\end{enumerate}
+\subsection{Induction proof}
 
-With this invariant, we ensure both that all cars enter the intersection \emph{and} that they exit the intersection in the specified number of steps.
+\code{uclid} was able to construct an inductive proof using our definition of the \code{no\_collision} invariant and implementation of the \code{can\_move} procedure without any additional strengthening invariants.
 
 \section{Linear Temporal Logic (LTL)}
 
@@ -215,28 +205,47 @@ In order to define our set of states $S$ and initial state $S_0$, we need to def
   \item \code{c} — the cabbage's location
 \end{enumerate}
 
-Our initial state $S_0$ can then be described by the set $\{s = 0, g = 0, w = 0, c = 0\}$. Our set of states $S$ is the set of all Boolean combinations of these states, such that two invariants are not violated: 
+Our initial state $S_0$ can then be described by the set $\{s = 0, g = 0, w = 0, c = 0\}$. Our set of states $S$ is the set of all Boolean combinations of these states, such that two invariants hold: 
 
 \begin{enumerate}
-  \item $w = g \land g \neq s$ — the wolf and goat are on the same side and Sisyphus is not on that side.
-  \item $c = g \land g \neq s$ — the cabbage and goat are on the same side and Sisyphus is not on that side.
+  \item $w = g \Longrightarrow w = g = s$ — if the wolf and goat are on the same side, then Sisyphus must also be on that side.
+  \item $c = g \Longrightarrow c = g = s$ — if the cabbage and goat are on the same side, then Sisyphus is not on that side.
 \end{enumerate}
 
 In this system, a transition $\delta$ involves flipping the values of at most two entities, one of which must be $s$. This reflects the constraint that the boat only has room for at most two entities, one of which must be Sisyphus himself.
 
-Finally, our labeling function defines all possible
+Finally, our labeling function defines all possible transitions of this system. We represent this using a labeled finite state automata in Figure \ref{fig:ltl-automata} In this automata, we use the notation $W:<s | g | w | c>$ and $E:<s | g | w | c>$ to label the state at each node. For example, the state in which the wolf $w$ is on the western bank and Sisyphus, the goat, and the cabbage are on the eastern bank is notated as $W: w, E: sgc$. We also label the transition relation $\delta$ as a set of updates that take place at an edge between two states.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.9\textwidth]{ltl-automata}
+  \caption{The labeled transition system encoding the river crossing problem.}
+  \label{fig:ltl-automata}
+\end{figure}
 
 \subsection{LTL formula for Sisyphus' task}
 
-To define LTL formula for Sisyphus' task and the constraints that the goat / wolf and goat / cabbage not be left alone on the same bank, we use the same variables as above.
+To define LTL formula for Sisyphus' task and the constraints that the goat / wolf and goat / cabbage not be left alone on the same bank, we use the same variables defined above.
 
 Let us now describe the reasoning for our LTL formula. First, we know that if the cabbage and the goat are on the same side ($c = g$), then Sisyphus must be on that side as well ($c = g \Longrightarrow c = g = s$). Likewise, if the goat and the wolf are on the same side ($g = w$), then Sisyphus must be on that side as well ($g = w \Longrightarrow g = w = s$). Notice that the goat, $g$, appears twice in these constraints. Combining these together, we can arrive at the following LTL formula:
 
 $$
-G(c = g \lor g = w \Longrightarrow g = s)
+G(c = g \lor w = g \Longrightarrow g = s)
 $$
 
 Concretely, this formula states that, globally, if the cabbage and the goat are on the same bank or if the goat and the wolf are on the same bank, then Sisyphus \emph{must} be on the same bank as the goat.
+
+We could additionally add the formula specifying that, eventually, all entities will be on the opposite side of the river. Since we start with all entities on the western bank ($s = g = w = c = 0$), we want to verify that all entities eventually reach the eastern bank. We can encode this using the future operator $F$ as follows:
+
+$$
+F(s = g = w = c = 1)
+$$
+
+Conjuncting all of these together, we arrive at:
+
+$$
+G(c = g \lor w = g \Longrightarrow g = s) \land F(s = g = w = c = 1)
+$$
 
 \subsection{A solution to Sisyphus' task}
 
@@ -249,8 +258,16 @@ Uncovering a solution to Sisyphus' task relies on making one key observation: th
   \item Bring the wolf to the eastern bank — $s = 1, g = 1, w = 1, c = 0$.
   \item Return to the western bank \emph{with the goat} — $s = 0, g = 0, w = 1, c = 0$.
   \item Bring the cabbage to the eastern bank — $s = 1, g = 0, w = 1, c = 1$.
-  \item Return to the eastern bank — $s = 0, g = 0, w = 1, c = 1$.
-  \item Bring the goat to the western bank — $s = 1, g = 1, w = 1, c = 1$.
+  \item Return to the western bank — $s = 0, g = 0, w = 1, c = 1$.
+  \item Bring the goat to the eastern bank — $s = 1, g = 1, w = 1, c = 1$.
 \end{enumerate}
+
+\subsection{Creating a Spin model for the river crossing problem}
+
+My encoding of a Spin model for the river crossing problem can be found in \code{river\_crossing.pml}.
+
+\subsection{Showing model satisfaction of LTL formula for the river crossing problem}
+
+My encoding of LTL formula for the river crossing problem can be found in \code{river\_crossing.pml}.
 
 \end{document}
